@@ -4,6 +4,7 @@ A website that summarizes the hottest tech news using AI.
 
 <img width="1901" height="962" alt="image" src="https://github.com/user-attachments/assets/31bafe7a-5ca9-4790-bcff-521c590fb83c" />
 
+
 ## How to Run Locally
 
 ### Prerequisites
@@ -71,6 +72,19 @@ Built as a modular monolith with clear service boundaries:
 
 - **Cursor**: Used throughout development for code generation, refactoring, and debugging. Helped structure the microservices architecture and implement the caching layer.
 - **OpenAI GPT-4o-mini**: Powers the news summarization feature within the application itself.
+
+### Development Process with AI
+
+1. **High-level design**: Sketched out the initial architecture and feature requirements
+2. **Architecture planning**: Defined the overall system structure (React frontend, FastAPI backend)
+3. **Ideation with Cursor**: Provided feature ideas and requirements to Cursor for implementation suggestions
+4. **Feedback loop**: Reviewed generated code, provided corrections and refinements
+5. **Finalized design**: Reworked the architecture based on feedback into a monolithic frontend with microservice-style backend
+6. **Implementation**: Used Cursor to generate the service layer, caching, and API endpoints
+7. **Manual debugging**: Debugged core files and fixed integration issues hands-on
+8. **Architecture refinement**: Restructured into clean service boundaries (news, summary, stocks)
+9. **Final polish**: Added proper documentation, comments, and error handling
+10. **Deployment**: Pushed to GitHub with proper .gitignore and environment variable handling
 
 ## What I'd Build Next
 
