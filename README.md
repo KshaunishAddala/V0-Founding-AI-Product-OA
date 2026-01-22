@@ -2,6 +2,8 @@
 
 A website that summarizes the hottest tech news using AI.
 
+<img width="1901" height="962" alt="image" src="https://github.com/user-attachments/assets/31bafe7a-5ca9-4790-bcff-521c590fb83c" />
+
 ## How to Run Locally
 
 ### Prerequisites
