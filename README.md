@@ -95,3 +95,139 @@ With more time:
 - **User accounts**: Save topic preferences, bookmark articles, email digests
 - **WebSocket updates**: Push new articles in real-time
 - **Full-text search**: Search across cached articles by keyword and date range
+
+## Future Deployment Architecture
+
+### Containerized Deployment on AWS
+
+Each service would be containerized and deployed on EC2 instances:
+
+```
+                    ┌─────────────────┐
+                    │   Route 53      │
+                    │   (DNS)         │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │   CloudFront    │
+                    │   (CDN)         │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+     ┌────────▼───────┐     │     ┌────────▼────────┐
+     │  S3 (Frontend) │     │     │  API Gateway    │
+     │  Static Assets │     │     │  (Auth + Rate   │
+     └────────────────┘     │     │   Limiting)     │
+                            │     └────────┬────────┘
+                            │              │
+                    ┌───────▼──────────────▼───────┐
+                    │         ALB                   │
+                    │   (Application Load Balancer) │
+                    └───────┬──────────────┬───────┘
+                            │              │
+           ┌────────────────┼──────────────┼────────────────┐
+           │                │              │                │
+  ┌────────▼───────┐ ┌──────▼─────┐ ┌──────▼─────┐ ┌───────▼──────┐
+  │ News Service   │ │  Summary   │ │  Stocks    │ │   Redis      │
+  │ (ECS/Fargate)  │ │  Service   │ │  Service   │ │   (Cache)    │
+  └────────────────┘ └────────────┘ └────────────┘ └──────────────┘
+```
+
+**Container Setup:**
+- Each service (news, summary, stocks) runs in its own Docker container
+- Deploy via ECS with Fargate (serverless containers) or EC2 launch type
+- Services communicate internally via service discovery or ALB routing
+
+### Scaling Strategy
+
+**Traffic Analysis:**
+- News endpoint: High read volume, cacheable → scale based on request count
+- Summary endpoint: CPU-intensive (OpenAI calls), lower volume → scale based on CPU
+- Stocks endpoint: Moderate volume, external API dependent → scale based on request count
+
+**Auto Scaling Group Configuration:**
+```
+News Service ASG:
+  - Min: 2, Max: 10, Desired: 2
+  - Scale out: CPU > 70% or requests > 1000/min
+  - Scale in: CPU < 30% for 10 minutes
+
+Summary Service ASG:
+  - Min: 1, Max: 5, Desired: 1
+  - Scale out: CPU > 60% or latency > 3s
+  - Scale in: CPU < 20% for 15 minutes
+
+Stocks Service ASG:
+  - Min: 1, Max: 3, Desired: 1
+  - Scale out: Requests > 500/min
+  - Scale in: Requests < 100/min for 10 minutes
+```
+
+### Authentication Layer
+
+**Do we need auth?** If we want user-specific features (saved preferences, bookmarks, personalized feeds), yes.
+
+**Implementation with API Gateway:**
+- AWS API Gateway sits in front of the ALB
+- JWT validation at the gateway level (zero changes to backend services)
+- Tokens issued by AWS Cognito or custom auth service
+
+```
+Request Flow:
+Client → API Gateway (JWT validation) → ALB → Services
+```
+
+**JWT Structure:**
+```json
+{
+  "sub": "user_id",
+  "email": "user@example.com",
+  "roles": ["user"],
+  "exp": 1234567890
+}
+```
+
+### Social Authentication Providers
+
+**Do we need social login?** For better UX and reduced friction, likely yes.
+
+**Options via AWS Cognito:**
+- Google OAuth 2.0
+- Apple Sign In
+- GitHub (relevant for tech audience)
+- Email/password as fallback
+
+**Implementation:**
+- Cognito User Pool handles all OAuth flows
+- Frontend uses Amplify SDK or direct Cognito API
+- Backend validates Cognito-issued JWTs
+
+### File Upload Architecture
+
+**Do we need uploads?** If users can submit articles, upload profile pictures, or attach content, yes.
+
+**Recommended Approach: S3 with Presigned URLs**
+
+```
+Upload Flow:
+1. Client requests upload URL from backend
+2. Backend generates presigned S3 URL (valid 15 min)
+3. Client uploads directly to S3 (no backend bandwidth)
+4. S3 triggers Lambda for processing (resize, scan, etc.)
+5. Backend stores S3 key in database
+```
+
+**Storage Options:**
+| Use Case | Storage | Why |
+|----------|---------|-----|
+| User avatars | S3 + CloudFront | Fast CDN delivery, image processing |
+| Article attachments | S3 | Cost-effective, scalable |
+| User preferences | DynamoDB | Fast key-value lookups |
+| Bookmarks/history | DynamoDB or PostgreSQL | Depends on query patterns |
+
+**Security:**
+- Presigned URLs expire after 15 minutes
+- S3 bucket is private, no public access
+- Virus scanning via Lambda on upload
+- File type validation on both client and server
